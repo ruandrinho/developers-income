@@ -1,7 +1,9 @@
 import requests
+import os
 from itertools import count
 from terminaltables import AsciiTable
 from tqdm import tqdm
+from dotenv import load_dotenv
 
 
 def predict_salary(salary_from, salary_to):
@@ -47,8 +49,7 @@ def find_vacancies_sj(languages):
     }
     headers = {
         'Host': 'api.superjob.ru',
-        'X-Api-App-Id': 'v3.r.136769959.fcb042d140df15cf73dccb9cedd9a320a06a18'
-                        '3b.45480d55ba19ddcb052f44937a0f2c18f1024a1f'
+        'X-Api-App-Id': os.getenv('SUPERJOB_SECRET_KEY')
     }
     for language in tqdm(languages, desc='Languages', position=0):
         salaries = []
@@ -117,6 +118,7 @@ def find_vacancies_hh(languages):
 
 
 def main():
+    load_dotenv()
     languages = ('Python', 'Java', 'JavaScript', 'C#', 'C++', 'PHP',
                  'Typescript', 'Swift', 'Go', 'Node.js')
     print('Fetching HeadHunter...')
