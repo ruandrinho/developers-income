@@ -126,6 +126,7 @@ def main():
     print('Fetching Superjob...')
     superjob_vacancies = find_vacancies_sj(languages)
     print(format_vacancies_as_table(hh_vacancies, 'HeadHunter Moscow'))
+    print()
     print(format_vacancies_as_table(superjob_vacancies, 'SuperJob Moscow'))
 
 
