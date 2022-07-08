@@ -15,12 +15,13 @@ def predict_salary_by_interval(salary_from, salary_to):
         return salary_to * 0.8
 
 
-def predict_rub_salary(vacancy):
-    if 'payment_from' in vacancy:  # SuperJob
-        return predict_salary_by_interval(vacancy['payment_from'],
-                                          vacancy['payment_to'])
+def predict_rub_salary_sj(vacancy):
+    return predict_salary_by_interval(vacancy['payment_from'],
+                                      vacancy['payment_to'])
 
-    if vacancy['salary']['currency'] != 'RUR':  # HeadHunter
+
+def predict_rub_salary_hh(vacancy):
+    if vacancy['salary']['currency'] != 'RUR':
         return
     return predict_salary_by_interval(vacancy['salary']['from'],
                                       vacancy['salary']['to'])
@@ -30,35 +31,29 @@ def format_vacancies_as_table(vacancies, title):
     table_data = [
         ['Язык', 'Вакансий найдено', 'Вакансий обработано', 'Средняя зарплата']
     ]
-    for language, vacancies_data in vacancies.items():
+    for language, statistics in vacancies.items():
         table_data.append([
             language,
-            vacancies_data['vacancies_found'],
-            vacancies_data['vacancies_processed'],
-            vacancies_data['average_salary']
+            statistics['vacancies_found'],
+            statistics['vacancies_processed'],
+            statistics['average_salary']
         ])
     return AsciiTable(table_data, title).table
 
 
-def get_vacancies_statistics(api_url, params, headers):
+def get_vacancies_statistics_sj(api_url, params, headers):
     salaries = []
     vacancies_found, vacancies_processed, average_salary = 0, 0, 0
     for page in tqdm(count(0), desc='Pages', position=1, leave=False):
         params['page'] = page
         response = requests.get(api_url, params=params, headers=headers)
         response.raise_for_status()
-        response_json = response.json()
-        if 'more' in response_json:  # SuperJob
-            last_page_reached = not response_json['more']
-            vacancies = response_json['objects']
-        else:                        # HeadHunter
-            last_page_reached = (page >= response_json['pages'])
-            vacancies = response_json['items']
-        if last_page_reached:
+        vacancies_with_meta = response.json()
+        if not vacancies_with_meta['more']:
             break
-        for vacancy in vacancies:
+        for vacancy in vacancies_with_meta['objects']:
             vacancies_found += 1
-            predicted_salary = predict_rub_salary(vacancy)
+            predicted_salary = predict_rub_salary_sj(vacancy)
             if predicted_salary:
                 salaries.append(predicted_salary)
     if vacancies_found:
@@ -79,13 +74,34 @@ def find_vacancies_sj(languages, superjob_secret_key):
     for language in tqdm(languages, desc='Languages', position=0):
         params['keyword'] = f'Программист {language}'
         vacancies_found, vacancies_processed, average_salary =\
-            get_vacancies_statistics(api_url, params, headers)
+            get_vacancies_statistics_sj(api_url, params, headers)
         vacancies_statistics[language] = {
             'vacancies_found': vacancies_found,
             'vacancies_processed': vacancies_processed,
             'average_salary': average_salary
         }
     return vacancies_statistics
+
+
+def get_vacancies_statistics_hh(api_url, params, headers):
+    salaries = []
+    vacancies_found, vacancies_processed, average_salary = 0, 0, 0
+    for page in tqdm(count(0), desc='Pages', position=1, leave=False):
+        params['page'] = page
+        response = requests.get(api_url, params=params, headers=headers)
+        response.raise_for_status()
+        vacancies_with_meta = response.json()
+        if page >= vacancies_with_meta['pages']:
+            break
+        for vacancy in vacancies_with_meta['items']:
+            vacancies_found += 1
+            predicted_salary = predict_rub_salary_hh(vacancy)
+            if predicted_salary:
+                salaries.append(predicted_salary)
+    if vacancies_found:
+        vacancies_processed = len(salaries)
+        average_salary = int(sum(salaries) / len(salaries))
+    return vacancies_found, vacancies_processed, average_salary
 
 
 def find_vacancies_hh(languages):
@@ -102,7 +118,7 @@ def find_vacancies_hh(languages):
     for language in tqdm(languages, desc='Languages', position=0):
         params['text'] = f'Программист {language}'
         vacancies_found, vacancies_processed, average_salary =\
-            get_vacancies_statistics(api_url, params, headers)
+            get_vacancies_statistics_hh(api_url, params, headers)
         vacancies_statistics[language] = {
             'vacancies_found': vacancies_found,
             'vacancies_processed': vacancies_processed,
